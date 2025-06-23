@@ -1,0 +1,87 @@
+module alu (
+    input a[32],  // 32-bit input 'a'
+    input b[32],  // 32-bit input 'b'
+    input alufn[6],  // 6-bit function selector input
+    output out[32],  // 32-bit output
+    output z,  // Zero flag output
+    output v,  // Overflow flag output
+    output n  // Negative flag output
+) {
+    // Instantiate submodules
+    adder adder1(#SIZE(32));  // 32-bit adder
+    compare compare;  // Comparison unit
+    boolean boolean1;  // Boolean logic unit
+    shifter shifter1;  // Shifter unit
+    multiplier multiplier1;  // Multiplier unit
+    mux_4 mux4_final32[32];  // 32-bit 4-way multiplexer
+    mux_4 mux4_final32_1[32];  // Additional 32-bit 4-way multiplexer
+    //divider divider1;  // Divider unit
+    modulo mod
+
+    always {
+        // Connect inputs to adder
+        adder1.a = a;
+        adder1.b = b;
+        adder1.alufn = alufn;
+
+        // Set output flags from adder
+        z = adder1.z;
+        v = adder1.v;
+        n = adder1.n;
+
+        // Pass flags and ALU function code to comparison unit
+        compare.z = adder1.z;
+        compare.v = adder1.v;
+        compare.n = adder1.n;
+        compare.alufn = alufn;
+    
+        // Connect inputs and function code to boolean logic unit
+        boolean1.a = a;
+        boolean1.b = b;
+        boolean1.alufn = alufn;
+        
+        // Connect inputs and function code to shifter unit
+        shifter1.a = a;
+        shifter1.b = b[4:0];  // Use lower 5 bits of 'b' for shift amount
+        shifter1.alufn = alufn;
+        
+        // Connect inputs to multiplier
+        multiplier1.a = a;
+        multiplier1.b = b;
+        
+        // Connect inputs to divider
+        mod.a = a;
+        mod.b = b;
+        
+        // Set up selectors for first mux chain
+        mux4_final32_1.s0 = 32x{alufn[0]};  // First selector bit
+        mux4_final32_1.s1 = 32x{alufn[1]};  // Second selector bit
+        // Set up selectors for final mux chain
+        mux4_final32.s0 = 32x{alufn[4]};  // Fifth selector bit
+        mux4_final32.s1 = 32x{alufn[5]};  // Sixth selector bit
+        
+        // Loop through each bit position (0 to 31)
+        repeat(i, 32) {
+            // Connect outputs to first multiplexer
+            mux4_final32_1.in[i][0] = adder1.out[i];  // Adder output
+            mux4_final32_1.in[i][2] = multiplier1.mul[i];  // Multiplier output
+            mux4_final32_1.in[i][3] = mod.m[i];  // Divider output (000011 case)
+            mux4_final32_1.in[i][1] = adder1.out[i];  // Duplicate adder output
+            
+            // Connect outputs to final multiplexer
+            mux4_final32.in[i][0] = mux4_final32_1.out[i];  // First mux output
+            mux4_final32.in[i][1] = boolean1.bool[i];  // Boolean logic output
+            mux4_final32.in[i][2] = shifter1.shift[i];  // Shifter output
+            
+            // Special case: comparison result only for bit 0
+            if (i == 0) {
+                mux4_final32.in[i][3] = compare.cmp;  // Comparison result
+            } else {
+                mux4_final32.in[i][3] = 0;  // Other bits get 0
+            }
+        }
+        
+        // Final output comes from the final multiplexer
+        out = mux4_final32.out;
+    }
+}

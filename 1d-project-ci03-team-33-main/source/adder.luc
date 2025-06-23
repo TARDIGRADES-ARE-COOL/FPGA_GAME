@@ -1,0 +1,29 @@
+module adder #(
+    SIZE ~ 32 : SIZE > 1
+)(
+    input a[SIZE],
+    input b[SIZE],
+    input alufn[6],
+    output out[SIZE],
+    output z,
+    output v,
+    output n
+) {
+    rca rca(#SIZE(32))
+    sig xb[SIZE]
+    
+    
+    always {
+        // implement adder/subtractor unit logic here
+        rca.a = a
+        xb = b ^ 32x{alufn[0]}
+        rca.b = xb
+        rca.cin = alufn[0]
+        
+        out = rca.s
+        z = ~|rca.s              //NOR Gate
+        v = (a[SIZE-1] & xb[SIZE-1] & ~rca.s[SIZE-1])|(~a[SIZE-1] & ~xb[SIZE-1] & rca.s[SIZE-1])    //POS & POS & OUT NEG || NEG & NEG & OUT POS
+        n = rca.s[SIZE-1]        //MSB bits
+        
+    }
+}

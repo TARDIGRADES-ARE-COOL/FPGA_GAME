@@ -1,0 +1,361 @@
+module game_cu (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32], //direct reading of regfile data from rd2
+    input regfile_rd1[32],
+    
+    input checklightbutton,
+    input bigredbutton,
+    input wiresequencebutton,
+    input light_sequence_start,
+    input start,
+    input l1,
+    input l2,
+    input l3,
+    input l4,
+    
+    output alufn[6],
+    output asel[3],
+    output bsel[5],
+    output alu_out_sel[2],
+    output regfile_wa[5],
+    output regfile_ra1[5],
+    output regfile_ra2[5],
+    output regfile_we,
+    output debug[4]
+) {    
+    enum GameStates {
+        START_SET_TIMER,
+        IDLE, 
+        DECREASE_GAMETIMER, 
+        CHECK_GAMETIMER,
+        BRANCH_GAMETIMER,
+        WIN,
+        LOSE,
+        GAMEOVER,
+        INCREASE_WIN_COUNT,
+        BIG_RED_BUTTON,
+        SUB_ZERO,
+        MOD_TIME,
+        CHECK_TIME,
+        COMPARE_TIME,
+        BRANCH_RED_BUTTON,
+        BRANCH_RIGHT_TIME,
+        WIRE_SEQUENCE,
+        BRANCH_WIRE_SEQUENCE,
+        WIRE_WIN,
+        RBB_WIN,
+        RBB_LOSE,
+        CHECK_WIN_OR_LOSE,
+        BRANCH_WIN_OR_LOSE,
+        CLB,
+        CHECK_CLB,
+        BRANCH_CLB,
+        CLB1,
+        CLB2,
+        CLB3,
+        CLB4,
+        LSS_WIN,
+        BRANCH_LB
+    }
+    dff game_fsm[$width(GameStates)](#INIT(GameStates.START_SET_TIMER), .clk(clk), .rst(rst))
+    
+    always {
+        // standard setting unless otherwise overwritten by each case 
+        alufn = 0
+        asel = 0 
+        bsel = 0
+        regfile_we = 0
+        regfile_wa = d6 
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        alu_out_sel = 0
+        
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if (rst){
+            game_fsm.d = GameStates.START_SET_TIMER
+        }
+        else{
+            case(game_fsm.q){ 
+                GameStates.START_SET_TIMER: 
+                    alufn = b011010                             //A
+                    asel = b11                                  //180
+                    regfile_we = 1 
+                    regfile_wa = d5                     //timer reg
+                    regfile_ra2 = d5              //direct read (temp reg)
+                    //if counter is set
+                    game_fsm.d =  GameStates.IDLE
+                
+                GameStates.DECREASE_GAMETIMER:
+                    alufn = b000001                         //SUB
+                    regfile_ra1 = d5                        //timer reg
+                    asel = b00 
+                    bsel = b01                              //constant 1
+                    regfile_we = 1
+                    regfile_wa = d5
+                    game_fsm.d = GameStates.IDLE
+                
+                GameStates.CHECK_GAMETIMER:
+                    alufn = b110011                         //CMPEQ
+                    regfile_ra1 = d5                        //timer reg
+                    asel = b00
+                    bsel = b10                              //constant 0
+                    regfile_we = 1
+                    regfile_wa = d6                         //temp reg 
+                    game_fsm.d = GameStates.BRANCH_GAMETIMER
+                
+                GameStates.BRANCH_GAMETIMER:
+                    regfile_ra2 = d6                        //temp reg
+                    if (~regfile_rd2[0]){                   //if timer is not zero
+                        game_fsm.d = GameStates.DECREASE_GAMETIMER
+                    }
+                    else{
+                        game_fsm.d = GameStates.GAMEOVER
+                    }
+                
+                GameStates.GAMEOVER:
+                    alufn = 0
+                    asel = 0 
+                    bsel = 0
+                    regfile_we = 0
+                    regfile_wa = d6 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.GAMEOVER
+                
+                      
+                
+                GameStates.BIG_RED_BUTTON:
+                    alufn = b110011         //CMPEQ
+                    regfile_ra1 = d1        //big red button reg
+                    asel = b00
+                    bsel = b01              //1
+                    regfile_we = 1
+                    regfile_wa = d1 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_RED_BUTTON
+                
+                GameStates.BRANCH_RED_BUTTON:
+                    regfile_ra2 = d1 
+                    regfile_ra1 = d9        //temp reg
+                    if (~regfile_rd2[0] && ~regfile_rd1[0]){
+                        game_fsm.d = GameStates.CHECK_TIME
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE
+                    }
+                
+                GameStates.CHECK_TIME:
+                    alufn = b000011        //MOD
+                    regfile_ra1 = d5       //timer temp reg
+                    asel = b00              
+                    bsel = b110            //10
+                    regfile_we = 1
+                    regfile_wa = d7 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_RIGHT_TIME
+                
+                GameStates.BRANCH_RIGHT_TIME:
+                    alufn = b110011         //CMPEQ
+                    regfile_ra1 = d7        //timer temp reg
+                    asel = b00              
+                    bsel = b10              //0
+                    regfile_we = 1
+                    regfile_wa = d9 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.RBB_WIN
+                
+                GameStates.RBB_WIN:
+                    regfile_ra2 = d9          //temp reg
+                    if (regfile_rd2[0]){  
+                        game_fsm.d = GameStates.INCREASE_WIN_COUNT
+                    }
+                    else{
+                        game_fsm.d = GameStates.RBB_LOSE
+                    }
+                
+                GameStates.RBB_LOSE:
+                    alufn = b000001         //SUB
+                    regfile_ra1 = d5        //timer reg
+                    asel = b00              
+                    bsel = b11              //10
+                    regfile_we = 1
+                    regfile_wa = d5 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.IDLE
+                
+                GameStates.INCREASE_WIN_COUNT:
+                    alufn = b000000         //CMPEQ
+                    regfile_ra1 = d4        //timer reg
+                    asel = b00              
+                    bsel = b01              //1
+                    regfile_we = 1
+                    regfile_wa = d4
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.CHECK_WIN_OR_LOSE
+                
+                GameStates.WIRE_SEQUENCE:
+                    alufn = b000000         //CMPEQ
+                    regfile_ra1 = d2        //wire
+                    asel = b00              
+                    bsel = b01              //1
+                    regfile_we = 1
+                    regfile_wa = d2
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_WIRE_SEQUENCE
+                
+                GameStates.BRANCH_WIRE_SEQUENCE:
+                    regfile_ra2 = d2
+                    regfile_ra1 = d10
+                    if (regfile_rd2[0] && ~regfile_rd1[0]){
+                        game_fsm.d = GameStates.WIRE_WIN
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE
+                    }
+                
+                GameStates.WIRE_WIN:
+                    alufn = b110011         //CMPEQ
+                    regfile_ra1 = d2        //wire
+                    asel = b00              //wire 0 
+                    bsel = b01              //1
+                    regfile_we = 1
+                    regfile_wa = d10
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.INCREASE_WIN_COUNT
+                
+                GameStates.CHECK_WIN_OR_LOSE:
+                    alufn = b110011        // CMPEQ
+                    regfile_ra1 = d4       // 
+                    asel = b00              
+                    bsel =  b101           //3
+                    regfile_we = 1
+                    regfile_wa = d12 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_WIN_OR_LOSE
+                
+                GameStates.BRANCH_WIN_OR_LOSE:
+                    regfile_ra2 = d12
+                    if(regfile_rd2[0]){
+                        game_fsm.d = GameStates.GAMEOVER
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE
+                    }
+                
+                GameStates.CLB:
+                    alufn = b000000         // add
+                    regfile_ra1 = d0      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d0 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_CLB
+                
+                GameStates.BRANCH_CLB:
+                    regfile_ra2 = d0
+                    regfile_ra1 = d11
+                    if (regfile_rd2[0] && l1 && ~regfile_rd1[0]){
+                        game_fsm.d = GameStates.CLB1
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE
+                    }
+                
+                GameStates.CLB1:
+                    alufn = b000000         // add
+                    regfile_ra1 = d13      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d13 
+                    alu_out_sel = 0
+                    if (regfile_rd1[0] && l2){
+                        game_fsm.d = GameStates.CLB2
+                    }
+                    else{
+                        game_fsm.d = GameStates.BRANCH_CLB
+                    }
+                
+                GameStates.CLB2:
+                    alufn = b000000         // add
+                    regfile_ra1 = d14      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d14 
+                    alu_out_sel = 0
+                    if (regfile_rd1[0] && l3){
+                        game_fsm.d = GameStates.CLB3
+                    }
+                    else{
+                        game_fsm.d = GameStates.BRANCH_CLB
+                    }
+                
+                GameStates.CLB3:
+                    alufn = b000000         // add
+                    regfile_ra1 = d15      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d15
+                    alu_out_sel = 0
+                    if (regfile_rd1[0]&& l4){
+                        game_fsm.d = GameStates.CLB4
+                    }
+                    else{
+                        game_fsm.d = GameStates.BRANCH_CLB
+                    }
+                
+                GameStates.CLB4:
+                    alufn = b000000         // add
+                    regfile_ra1 = d16      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d16 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.LSS_WIN
+                
+                GameStates.LSS_WIN:
+                    alufn = b000000         // add
+                    regfile_ra1 = d11      // 
+                    asel = b00              
+                    bsel =  b01      // 1
+                    regfile_we = 1
+                    regfile_wa = d11 
+                    alu_out_sel = 0
+                    game_fsm.d = GameStates.BRANCH_LB
+                
+                GameStates.BRANCH_LB:
+                    regfile_ra2 = d11
+                    regfile_ra1 = d16
+                    if(regfile_rd2[0]){
+                        game_fsm.d = GameStates.INCREASE_WIN_COUNT 
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE
+                    }
+                
+                GameStates.IDLE:
+                    if(start){
+                        if (decrease_timer){
+                            game_fsm.d = GameStates.CHECK_GAMETIMER
+                        }
+                        else if (bigredbutton){
+                            game_fsm.d = GameStates.BIG_RED_BUTTON
+                        }
+                        else if (wiresequencebutton){
+                            game_fsm.d = GameStates.WIRE_SEQUENCE
+                        }
+                        else if  (checklightbutton){
+                            game_fsm.d = GameStates.CLB
+                        }
+                    }
+            }
+        }
+    }
+}

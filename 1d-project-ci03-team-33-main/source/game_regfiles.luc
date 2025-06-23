@@ -1,0 +1,133 @@
+module game_regfiles (
+    input clk,  // clock
+    input rst,  // reset
+    input wa[5], // write address
+    input we, // write enable
+    input data[32], // data in
+    
+    input ra1[5], // read address port 1
+    input ra2[5], // read address port 2
+    output rd1[32], // read data port 1
+    output rd2[32], // read data port 1
+    
+    // states
+    output checklightbutton_out[32],
+    output bigredbutton_out[32],
+    output wire1_out[32],
+    output wire2_out[32],
+    output timer_out[32],
+    output wincount_out[32],
+    output rbb_win_out[32],
+    output wire_win_out[32],
+    output light_win_out[32],
+    output light_sequence_out[32],
+    output wol_out[32],
+    output l1_out[32],
+    output l2_out[32],
+    output l3_out[32],
+    output l4_out[32]
+) {
+    .clk(clk){
+        .rst(rst){
+            dff checklightbutton[32](#INIT(0))
+            dff bigredbutton[32](#INIT(0))
+            dff wire1[32](#INIT(0))
+            dff wire2[32](#INIT(0))
+            dff timer[32](#INIT(0))
+            dff wincount[32](#INIT(0))
+            dff temp_var1[32](#INIT(0))
+            dff temp_var2[32](#INIT(0))
+            dff temp_var3[32](#INIT(0))
+            dff rbb_win[32](#INIT(0))
+            dff wire_win[32](#INIT(0))
+            dff light_win[32](#INIT(0))
+            dff wol[32](#INIT(0))
+            dff l1[32](#INIT(0))
+            dff l2[32](#INIT(0))
+            dff l3[32](#INIT(0))
+            dff l4[32](#INIT(0))
+        }
+    }
+    always {
+        //write port
+        if (we){
+            case(wa){
+                d0 : checklightbutton.d = data
+                d1 : bigredbutton.d = data
+                d2 : wire1.d = data
+                d3 : wire2.d= data
+                d4 : wincount.d = data
+                d5 : timer.d = data
+                d6 : temp_var1.d = data
+                d7 : temp_var2.d = data
+                d8 : temp_var3.d = data
+                d9 : rbb_win.d = data
+                d10: wire_win.d = data
+                d11: light_win.d = data
+                d12: wol.d = data
+                d13: l1.d = data
+                d14: l2.d = data
+                d15: l3.d = data
+                d16: l4.d = data
+            }
+        }
+        //read port a
+        case(ra1){
+            d0 : rd1 = checklightbutton.q
+            d1 : rd1 = bigredbutton.q
+            d2 : rd1 = wire1.q
+            d3 : rd1 = wire2.q
+            d4 : rd1 = wincount.q
+            d5 : rd1 = timer.q
+            d6 : rd1 = temp_var1.q    //d611
+            d7 : rd1 = temp_var2.q
+            d8 : rd1 = temp_var3.q
+            d9 : rd1 = rbb_win.q
+            d10 : rd1 = wire_win.q
+            d11 : rd1 = light_win.q
+            d12 : rd1 = wol.q
+            d13 : rd1 = l1.q
+            d14 : rd1 = l2.q
+            d15 : rd1 = l3.q
+            d16 : rd1 = l4.q
+            default : rd1 = 0
+        }
+        
+        //read port b
+        case(ra2){
+            d0 : rd2 = checklightbutton.q
+            d1 : rd2 = bigredbutton.q
+            d2 : rd2 = wire1.q
+            d3 : rd2 = wire2.q
+            d4 : rd2 = wincount.q
+            d5 : rd2 = timer.q
+            d6 : rd2 = temp_var1.q    //d611
+            d7 : rd2 = temp_var2.q
+            d8 : rd2 = temp_var3.q
+            d9 : rd2 = rbb_win.q
+            d10 : rd2 = wire_win.q
+            d11 : rd2 = light_win.q
+            d12 : rd2 = wol.q
+            d13 : rd2 = l1.q
+            d14 : rd2 = l2.q
+            d15 : rd2 = l3.q
+            d16 : rd2 = l4.q
+            default : rd2 = 0
+        }
+        checklightbutton_out = checklightbutton.q
+        bigredbutton_out = bigredbutton.q
+        wire1_out = wire1.q
+        wire2_out = wire2.q
+        timer_out = timer.q
+        wincount_out = wincount.q
+        rbb_win_out = rbb_win.q
+        wire_win_out = wire_win.q
+        light_win_out = light_win.q
+        light_sequence_out = temp_var3.q
+        wol_out = wol.q
+        l1_out = l1.q
+        l2_out = l2.q
+        l3_out = l3.q
+        l4_out = l4.q
+    }
+}

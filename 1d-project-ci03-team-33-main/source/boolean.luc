@@ -1,0 +1,22 @@
+module boolean #(
+    SIZE = 32 : SIZE > 0
+)(
+    input a[SIZE],
+    input b[SIZE],
+    input alufn[6],
+    output bool[SIZE]
+) {
+    mux_4 mux_4_32[32];
+    
+    always {
+        bool = 0 
+        mux_4_32.s0 = a[31:0]
+        mux_4_32.s1 = b[31:0]
+        mux_4_32.in = 32x{{alufn[3:0]}}
+        bool = mux_4_32.out
+    }
+    
+}
+
+
+

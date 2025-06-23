@@ -1,0 +1,134 @@
+module game_datapath#(
+    SLOW_CLOCK_DIV ~ 26 : SLOW_CLOCK_DIV > 0,
+    FAST_CLOCK_DIV ~ 21 : FAST_CLOCK_DIV > 0
+)(
+    input checklightbutton,
+    input bigredbutton,
+    input wiresequencebutton,
+    input light_sequence_start,
+    input start,
+    input l1,
+    input l2,
+    input l3,
+    input l4,
+    
+    input clk,  // clock
+    input rst,  // reset
+    
+    // output to LEDs/7segments
+    output checklightbutton_out[32],
+    output bigredbutton_out[32],
+    output wire1_out[32],
+    output wire2_out[32],
+    output timer_out[32],
+    
+    output slow_clock_out,
+    output wincount_out[32],
+    output rbb_win_out[32],
+    output wire_win_out[32],
+    output light_win_out[32],
+    output light_sequence_out[32],
+    output wol_out[32],
+    output l1_out[32],
+    output l2_out[32],
+    output l3_out[32],
+    output l4_out[32],
+    
+    // debug signals
+    output debug_general[4]
+) {
+    //temp variables
+    sig input_alu_a[32]
+    sig input_alu_b[32]
+    
+    alu game_alu
+    
+    .clk(clk){
+        counter game_timer_clock(#SIZE(1),#DIV(SLOW_CLOCK_DIV), .rst(rst)) 
+        
+        // edge detector declaration & connection with counte
+        edge_detector edge_detector_game_timer(#RISE(1), #FALL(0), .in(game_timer_clock.value))
+        
+        game_cu game_cu(
+            .checklightbutton(checklightbutton),
+            .bigredbutton(bigredbutton),
+            .wiresequencebutton(wiresequencebutton), 
+            .light_sequence_start(light_sequence_start),
+            .start(start),
+            .l1(l1),
+            .l2(l2),
+            .l3(l3),
+            .l4(l4),
+            .rst(rst),
+            .decrease_timer(edge_detector_game_timer.out)
+        )
+        
+        game_regfiles game_regfiles(
+            .we(game_cu.regfile_we), 
+            .wa(game_cu.regfile_wa), 
+            .ra1(game_cu.regfile_ra1), 
+            .ra2(game_cu.regfile_ra2),
+            .rst(rst)
+        )
+    }
+    always {
+        // bootstrap rd2 output to CU for convenient branching conditions
+        game_cu.regfile_rd2 = game_regfiles.rd2
+        game_cu.regfile_rd1 = game_regfiles.rd1
+        
+        // asel mux
+        case(game_cu.asel){
+            b00  : input_alu_a = game_regfiles.rd1
+            b01  : input_alu_a = 1 
+            b10  : input_alu_a = 176
+            b11  : input_alu_a = 180
+            default : //b10 unused
+                input_alu_a = 0
+        }
+        
+        // bsel mux
+        case(game_cu.bsel){
+            b00 : input_alu_b = game_regfiles.rd2
+            b01 : input_alu_b = 1
+            b11 : input_alu_b = 10
+            b10 : input_alu_b = 0
+            b100 : input_alu_b = 6
+            b101 : input_alu_b = 3
+            b110 : input_alu_b = 8
+            default: //necessary to init
+                input_alu_b = 0
+        }
+        
+        // alu
+        game_alu.a = input_alu_a
+        game_alu.b = input_alu_b
+        game_alu.alufn = game_cu.alufn
+        
+        // wdsel mux
+        case (game_cu.alu_out_sel){
+            b01 : game_regfiles.data = hFFFF
+            b10 : game_regfiles.data = hF
+            b11 : game_regfiles.data = 0
+            default : 
+                game_regfiles.data = game_alu.out
+        }
+        timer_out = game_regfiles.timer_out
+        checklightbutton_out = game_regfiles.checklightbutton_out
+        bigredbutton_out = game_regfiles.bigredbutton_out
+        wire1_out = game_regfiles.wire1_out
+        wire2_out = game_regfiles.wire2_out
+        wincount_out = game_regfiles.wincount_out
+        slow_clock_out = game_timer_clock.value
+        rbb_win_out = game_regfiles.rbb_win_out
+        wire_win_out = game_regfiles.wire_win_out
+        light_win_out = game_regfiles.light_win_out
+        light_sequence_out = game_regfiles.light_sequence_out
+        wol_out = game_regfiles.wol_out
+        l1_out = game_regfiles.l1_out
+        l2_out = game_regfiles.l2_out
+        l3_out = game_regfiles.l3_out
+        l4_out = game_regfiles.l4_out
+        
+        debug_general = game_cu.debug
+    }
+}

@@ -1,0 +1,92 @@
+module alchitry_top (
+    input clk,              // 100MHz clock
+    input rst_n,            // reset button (active low)
+    output led[8],          // 8 user controllable LEDs
+    input usb_rx,            // USB->Serial input
+    output usb_tx,           // USB->Serial output
+    output io_led[3][8],     // LEDs on IO Shield
+    output io_segment[8],        // 7-segment LEDs on IO Shield
+    output io_select[4],        // Digit select on IO Shield
+    input io_button[5],      // 5 buttons on IO Shield
+    input io_dip[3][8]       // DIP switches on IO Shield
+) {
+    sig rst                 // reset signal
+    const CLK_FREQ = $is_sim() ? 1000 : 100000000 // put 1000 for sim, 100M for hardware 
+    const SEVEN_SEG_DIV = $is_sim() ? 3 : 16 // put 3 for sim, 16 for hardware
+    const SLOW_CLOCK_DIV = $is_sim() ? 8 : 26 // put 9 for sim, 26 for hardware 
+    const FAST_CLOCK_DIV = $is_sim() ? 6 : 21 // put 7 for sim, 21 for hardware 
+    
+    .clk(clk) {
+        // The reset conditioner is used to synchronize the reset signal to the FPGA
+        // clock. This ensures the entire FPGA comes out of reset at the same time.
+        reset_conditioner reset_cond
+        edge_detector edge_dt_btn_p1 (#RISE(1), #FALL(0))
+        edge_detector edge_dt_btn_p2(#RISE(1), #FALL(0))
+        edge_detector edge_dt_btn_p3(#RISE(1), #FALL(0))
+        edge_detector edge_dt_btn_p4(#RISE(1), #FALL(0))
+        
+        button_conditioner btn_cond_p1(#CLK_FREQ(CLK_FREQ))
+        button_conditioner btn_cond_p2(#CLK_FREQ(CLK_FREQ)) 
+        button_conditioner btn_cond_p3(#CLK_FREQ(CLK_FREQ)) 
+        button_conditioner btn_cond_p4(#CLK_FREQ(CLK_FREQ)) 
+        
+        .rst(rst){
+            multi_seven_seg seg(#DIV(SEVEN_SEG_DIV))
+            game_datapath game_datapath(#SLOW_CLOCK_DIV(SLOW_CLOCK_DIV), #FAST_CLOCK_DIV(FAST_CLOCK_DIV))
+        }
+    }
+    bin_to_dec bin_to_dec_converter(#DIGITS(4))
+    
+    always {
+        reset_cond.in = ~rst_n // input raw inverted reset signal
+        rst = reset_cond.out   // conditioned reset
+        
+        usb_tx = usb_rx        // loop serial port
+        
+        led = 8h00             // turn LEDs off
+        
+        io_led = 3x{{8h00}}    // turn LEDs off
+        io_segment = 8hff          // turn segments off
+        io_select = 4hf           // select no digits
+        
+        btn_cond_p1.in = io_button[4] //to reduce the bouncing effects of your button 
+        btn_cond_p2.in = io_button[0]
+        btn_cond_p3.in = io_button[1]
+        btn_cond_p4.in = io_button[3]
+        
+        edge_dt_btn_p1.in = btn_cond_p1.out //get the edge of button press
+        edge_dt_btn_p2.in = btn_cond_p2.out
+        edge_dt_btn_p3.in = btn_cond_p3.out
+        edge_dt_btn_p4.in = btn_cond_p4.out
+        game_datapath.start= io_dip[0][1]
+        game_datapath.l1 = io_dip[2][4]
+        game_datapath.l2 = io_dip[2][5]
+        game_datapath.l3 = io_dip[2][6]
+        game_datapath.l4 = io_dip[2][7]
+        
+        game_datapath.checklightbutton = edge_dt_btn_p1.out
+        game_datapath.bigredbutton = edge_dt_btn_p2.out
+        game_datapath.wiresequencebutton = edge_dt_btn_p3.out
+        game_datapath.light_sequence_start = edge_dt_btn_p4.out
+        rst = ~io_dip[0][1]
+        
+        //update 7segments
+        seg.values = 4x{{4b0}} // default to all 0 first
+        bin_to_dec_converter.value = game_datapath.timer_out
+        seg.values = bin_to_dec_converter.digits
+        
+        io_led[2] = game_datapath.timer_out // timer
+        
+        led = game_datapath.wincount_out
+        
+        io_led[0][0] = game_datapath.rbb_win_out// reg big button won 
+        io_led[0][1] = game_datapath.wire_win_out //wire sequence won 
+        io_led[0][7] = game_datapath.light_win_out//light sequence won
+        io_led[0][6] = game_datapath.wol_out // is the game won ?
+        
+        io_led[1][2] = ~game_datapath.rbb_win_out// reg big button won
+        
+        io_segment = ~seg.seg
+        io_select = seg.sel
+    }
+}

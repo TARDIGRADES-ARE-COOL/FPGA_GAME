@@ -1,0 +1,10 @@
+// a modulo b computed using division and multiplication
+module modulo (
+    input a[32], // dividend
+    input b[32], // divisor
+    output m[32] // remainder of a mod b
+) {
+  always {
+        m = a - (a/8) * b
+  }
+}
